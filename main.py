@@ -1,80 +1,84 @@
 import cv2
-import os
-import numpy as np
+import tkinter as tk
+import tkinter.font as tkFont
 import time
-import shutil
 
 ASCII_CHARS = "@%#*+=-:. "
 
-# frame handling
-def frame_to_ascii(frame, max_width, max_height):
-    height, width, _ = frame.shape
-    aspect_ratio = height / width
+def frame_to_ascii(frame, width):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    height, original_width = gray.shape
+    aspect_ratio = height / original_width
 
-    new_width = max_width
-    new_height = int(aspect_ratio * new_width * 0.55)
-
-    if new_height > max_height:
-        new_height = max_height
-        new_width = int(new_height / (aspect_ratio * 0.55))
-
-    resized_frame = cv2.resize(frame, (new_width, new_height))
-    gray = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2GRAY)
+    new_height = int(aspect_ratio * width * 0.55)
+    resized = cv2.resize(gray, (width, new_height))
 
     ascii_str = ""
-    for row in gray:
-        for pixel in row:
-            ascii_str += ASCII_CHARS[int(pixel) * len(ASCII_CHARS) // 256]
-        ascii_str += "\n"
-
+    for row in resized:
+        line = "".join(
+            ASCII_CHARS[int(pixel) * len(ASCII_CHARS) // 256] for pixel in row
+        )
+        ascii_str += line.rstrip() + "\n"  
     return ascii_str
 
-def clear_terminal():
-    print("\033[H\033[J", end="")  
+class AsciiWebcamApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("ASCII Webcam")
 
-def main():
-    device_path = "/dev/video0"
-    cap = cv2.VideoCapture(device_path)
+        screen_width = 1366
+        screen_height = 768
+        window_width = int(screen_width * 0.75)
+        window_height = int(screen_height * 0.75)
+        self.root.geometry(f"{window_width}x{window_height}")
 
-    if not cap.isOpened():
-        print("Cannot open webcam!")
-        return
+        self.label = tk.Label(root, font=("Courier", 6), justify=tk.LEFT,
+                              anchor="nw", bg="black", fg="white")
+        self.label.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
 
-    prev_time = time.time()
-    frame_count = 0
-    fps = 0
+        self.font = tkFont.Font(family="Courier", size=6)
+        self.char_width = self.font.measure("M")
 
-    try:
-        while True:
-            start_time = time.time()
-            ret, frame = cap.read()
-            if not ret:
-                break
+        # Webcam
+        self.cap = cv2.VideoCapture(0)
+        if not self.cap.isOpened():
+            print("Gagal membuka webcam.")
+            exit()
 
-            term_size = shutil.get_terminal_size()
-            term_width = term_size.columns
-            term_height = term_size.lines - 2  # Sisakan 2 baris buat info
+        self.device_name = "Default Webcam"
+        self.fps = 0
+        self.last_time = time.time()
 
-            ascii_frame = frame_to_ascii(frame, term_width, term_height)
+        self.update_frame()
 
-            frame_count += 1
+    def update_frame(self):
+        ret, frame = self.cap.read()
+        if ret:
+            label_width_px = self.label.winfo_width()
+            if label_width_px <= 1:
+                label_width_px = 800  # fallback 
+
+            ascii_width = max(10, int(label_width_px / self.char_width))
+
+            ascii_art = frame_to_ascii(frame, width=ascii_width)
+
+            # count for fps
             current_time = time.time()
-            if current_time - prev_time >= 1.0:
-                fps = frame_count
-                frame_count = 0
-                prev_time = current_time
+            elapsed = current_time - self.last_time
+            self.fps = 1 / elapsed if elapsed > 0 else 0
+            self.last_time = current_time
 
-            clear_terminal()
-            print(f"[FPS: {fps}] [Device: {device_path}]")
-            print(ascii_frame)
+            header = f"Device: {self.device_name} | FPS: {self.fps:.2f}\n\n"
+            self.label.config(text=header + ascii_art)
 
-    except KeyboardInterrupt:
-        pass
-    finally:
-        cap.release()
-        clear_terminal()
-        print("✌️ Webcam ASCII viewer exited.")
+        self.root.after(30, self.update_frame)
+
+    def __del__(self):
+        if self.cap.isOpened():
+            self.cap.release()
 
 if __name__ == "__main__":
-    main()
+    root = tk.Tk()
+    app = AsciiWebcamApp(root)
+    root.mainloop()
 

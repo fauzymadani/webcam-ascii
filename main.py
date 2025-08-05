@@ -24,13 +24,14 @@ def frame_to_ascii(frame, width):
 class AsciiWebcamApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("ASCII Webcam")
+        self.root.title("idk")
 
         screen_width = 1366
         screen_height = 768
         window_width = int(screen_width * 0.75)
         window_height = int(screen_height * 0.75)
-        self.root.geometry(f"{window_width}x{window_height}")
+        self.root.geometry(f"470x380") # for small screen and if you want it to use alongside obs studio
+        # self.root.geometry(f"{screen_width}x{screen_height}") # For a wider screen
 
         self.label = tk.Label(root, font=("Courier", 6), justify=tk.LEFT,
                               anchor="nw", bg="black", fg="white")
@@ -42,7 +43,7 @@ class AsciiWebcamApp:
         # Webcam
         self.cap = cv2.VideoCapture(0)
         if not self.cap.isOpened():
-            print("Gagal membuka webcam.")
+            print("[ERR]: Failed to open webcam.")
             exit()
 
         self.device_name = "Default Webcam"
@@ -67,8 +68,9 @@ class AsciiWebcamApp:
             elapsed = current_time - self.last_time
             self.fps = 1 / elapsed if elapsed > 0 else 0
             self.last_time = current_time
+            fps_cam = self.cap.get(cv2.CAP_PROP_FPS)
 
-            header = f"Device: {self.device_name} | FPS: {self.fps:.2f}\n\n"
+            header = f"Device: {self.device_name} | FPS: {fps_cam} | Loop FPS: {self.fps:.2f} | \n\n"
             self.label.config(text=header + ascii_art)
 
         self.root.after(30, self.update_frame)

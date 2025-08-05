@@ -6,19 +6,16 @@ import shutil
 
 ASCII_CHARS = "@%#*+=-:. "
 
-def frame_to_ascii(frame):
-    terminal_size = shutil.get_terminal_size()
-    term_width = terminal_size.columns
-    term_height = terminal_size.lines - 1  
-
+# frame handling
+def frame_to_ascii(frame, max_width, max_height):
     height, width, _ = frame.shape
     aspect_ratio = height / width
 
-    new_width = term_width
+    new_width = max_width
     new_height = int(aspect_ratio * new_width * 0.55)
 
-    if new_height > term_height:
-        new_height = term_height
+    if new_height > max_height:
+        new_height = max_height
         new_width = int(new_height / (aspect_ratio * 0.55))
 
     resized_frame = cv2.resize(frame, (new_width, new_height))
@@ -33,25 +30,44 @@ def frame_to_ascii(frame):
     return ascii_str
 
 def clear_terminal():
-    os.system('cls' if os.name == 'nt' else 'clear')
+    print("\033[H\033[J", end="")  
 
 def main():
-    cap = cv2.VideoCapture(0)
+    device_path = "/dev/video0"
+    cap = cv2.VideoCapture(device_path)
 
     if not cap.isOpened():
-        print("cannot open webcam !")
+        print("Cannot open webcam!")
         return
+
+    prev_time = time.time()
+    frame_count = 0
+    fps = 0
 
     try:
         while True:
+            start_time = time.time()
             ret, frame = cap.read()
             if not ret:
                 break
 
-            ascii_frame = frame_to_ascii(frame)
+            term_size = shutil.get_terminal_size()
+            term_width = term_size.columns
+            term_height = term_size.lines - 2  # Sisakan 2 baris buat info
+
+            ascii_frame = frame_to_ascii(frame, term_width, term_height)
+
+            frame_count += 1
+            current_time = time.time()
+            if current_time - prev_time >= 1.0:
+                fps = frame_count
+                frame_count = 0
+                prev_time = current_time
+
             clear_terminal()
+            print(f"[FPS: {fps}] [Device: {device_path}]")
             print(ascii_frame)
-            time.sleep(0.03)  # ~30 FPS
+
     except KeyboardInterrupt:
         pass
     finally:
